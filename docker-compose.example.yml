@@ -1,0 +1,58 @@
+# Docker Compose 예시 파일
+# 서버 인스턴스에서 이 파일을 참고하여 docker-compose.yml을 구성하세요
+
+version: '3.8'
+
+services:
+  nginx:
+    image: your-ecr-registry.dkr.ecr.region.amazonaws.com/teaming-admin:latest
+    container_name: teaming-admin-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Let's Encrypt 인증서 마운트 (읽기 전용)
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+      # Certbot webroot 마운트
+      - /var/www/certbot:/var/www/certbot
+      # 로그 디렉터리
+      - ./logs:/var/log/nginx
+    environment:
+      - NODE_ENV=production
+    networks:
+      - teaming-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # 백엔드 API 서버 (예시)
+  backend:
+    image: your-backend-image:latest
+    container_name: teaming-backend
+    ports:
+      - "8080:8080"
+    networks:
+      - teaming-network
+    restart: unless-stopped
+
+  # 웹소켓 서버 (예시)
+  websocket:
+    image: your-websocket-image:latest
+    container_name: teaming-websocket
+    ports:
+      - "8081:8081"
+    networks:
+      - teaming-network
+    restart: unless-stopped
+
+networks:
+  teaming-network:
+    driver: bridge
+
+volumes:
+  nginx-logs:
+
