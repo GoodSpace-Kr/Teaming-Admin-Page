@@ -1,4 +1,7 @@
-// API 유틸리티 함수들
+// API 유틸리티 함수들 (JWT 자동 관리 포함)
+
+import { storage } from './storage';
+import { refreshTokenIfNeeded } from './auth';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://teamingkr.duckdns.org';
 const WS_BASE_URL = import.meta.env.VITE_WS_BASE_URL || 'wss://teamingkr.duckdns.org';
@@ -12,43 +15,43 @@ export const apiConfig = {
 
 // API 엔드포인트들
 export const API_ENDPOINTS = {
-  // 사용자 관련
-  USERS: '/api/users',
-  USER_DETAIL: (id: string) => `/api/users/${id}`,
-  USER_CREATE: '/api/users',
-  USER_UPDATE: (id: string) => `/api/users/${id}`,
-  USER_DELETE: (id: string) => `/api/users/${id}`,
-  
-  // 팀 관련
-  TEAMS: '/api/teams',
-  TEAM_DETAIL: (id: string) => `/api/teams/${id}`,
-  TEAM_CREATE: '/api/teams',
-  TEAM_UPDATE: (id: string) => `/api/teams/${id}`,
-  TEAM_DELETE: (id: string) => `/api/teams/${id}`,
-  
   // 인증 관련
-  AUTH_LOGIN: '/api/auth/login',
-  AUTH_LOGOUT: '/api/auth/logout',
-  AUTH_REFRESH: '/api/auth/refresh',
-  AUTH_ME: '/api/auth/me',
+  AUTH_LOGIN: '/api/auth/teaming/sign-in',
+  AUTH_LOGOUT: '/users/me/log-out',
+  AUTH_REFRESH: '/users/me/access-token',
+  AUTH_ME: '/users/me',
   
-  // 통계 관련
-  STATS_DASHBOARD: '/api/stats/dashboard',
-  STATS_USERS: '/api/stats/users',
-  STATS_TEAMS: '/api/stats/teams',
+  // 사용자 관련
+  USERS: '/users/me',
+  USER_UPDATE: '/users/me',
+  USER_DELETE: '/users/me/withdraw',
+  
+  // 팀 관련 (실제 API에 맞게 수정)
+  ROOMS: '/rooms',
+  ROOM_DETAIL: (id: number) => `/rooms/${id}`,
+  ROOM_CREATE: '/rooms',
+  ROOM_LEAVE: (id: number) => `/rooms/${id}`,
+  
+  // 통계 관련 (실제 API에 맞게 수정)
+  STATS_LANDING: '/landing',
+  STATS_GIFTICON: '/admin/gifticon',
   
   // 웹소켓 관련
   WS_CONNECT: '/ws/connect',
   WS_NOTIFICATIONS: '/ws/notifications',
 };
 
-// HTTP 요청 헬퍼 함수
-export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
+// HTTP 요청 헬퍼 함수 (JWT 자동 관리)
+export const apiRequest = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
   const url = `${apiConfig.baseURL}${endpoint}`;
+  
+  // 토큰 갱신 시도
+  const accessToken = await refreshTokenIfNeeded();
   
   const defaultOptions: RequestInit = {
     headers: {
       'Content-Type': 'application/json',
+      ...(accessToken && { 'Authorization': `Bearer ${accessToken}` }),
       ...options.headers,
     },
     ...options,
@@ -56,6 +59,36 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}) =>
 
   try {
     const response = await fetch(url, defaultOptions);
+    
+    // 403 응답 처리 (토큰 만료)
+    if (response.status === 403) {
+      // 토큰 갱신 시도
+      const newAccessToken = await refreshTokenIfNeeded();
+      
+      if (newAccessToken) {
+        // 새로운 토큰으로 재시도
+        const retryOptions: RequestInit = {
+          ...defaultOptions,
+          headers: {
+            ...defaultOptions.headers,
+            'Authorization': `Bearer ${newAccessToken}`,
+          },
+        };
+        
+        const retryResponse = await fetch(url, retryOptions);
+        
+        if (!retryResponse.ok) {
+          throw new Error(`HTTP error! status: ${retryResponse.status}`);
+        }
+        
+        return await retryResponse.json();
+      } else {
+        // 토큰 갱신 실패 - 로그인 페이지로 리다이렉트
+        storage.clearAuth();
+        window.location.href = '/login';
+        throw new Error('인증이 만료되었습니다. 다시 로그인해주세요.');
+      }
+    }
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
@@ -85,6 +118,14 @@ export const apiPut = (endpoint: string, data?: any, options?: RequestInit) =>
   apiRequest(endpoint, {
     ...options,
     method: 'PUT',
+    body: data ? JSON.stringify(data) : undefined,
+  });
+
+// PATCH 요청
+export const apiPatch = (endpoint: string, data?: any, options?: RequestInit) => 
+  apiRequest(endpoint, {
+    ...options,
+    method: 'PATCH',
     body: data ? JSON.stringify(data) : undefined,
   });
 

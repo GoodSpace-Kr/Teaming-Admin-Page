@@ -2,8 +2,10 @@ import { useState } from 'react';
 import { BellIcon, UserCircleIcon } from '@heroicons/react/24/outline';
 import { Menu, Transition } from '@headlessui/react';
 import { Fragment } from 'react';
+import { useAuth } from '../../contexts/AuthContext';
 
 export default function Header() {
+  const { state, logout } = useAuth();
   const [notifications] = useState([
     { id: 1, message: '새로운 사용자가 가입했습니다.', time: '5분 전' },
     { id: 2, message: '팀 생성 요청이 있습니다.', time: '1시간 전' },
@@ -54,7 +56,7 @@ export default function Header() {
           <Menu as="div" className="relative">
             <Menu.Button className="flex items-center space-x-2 p-2 text-gray-700 hover:text-gray-900">
               <UserCircleIcon className="w-8 h-8" />
-              <span className="text-sm font-medium">관리자</span>
+              <span className="text-sm font-medium">{state.user?.name || '관리자'}</span>
             </Menu.Button>
             <Transition
               as={Fragment}
@@ -93,14 +95,14 @@ export default function Header() {
                   </Menu.Item>
                   <Menu.Item>
                     {({ active }) => (
-                      <a
-                        href="#"
+                      <button
+                        onClick={logout}
                         className={`${
                           active ? 'bg-gray-100' : ''
-                        } block px-4 py-2 text-sm text-gray-700`}
+                        } block w-full text-left px-4 py-2 text-sm text-gray-700`}
                       >
                         로그아웃
-                      </a>
+                      </button>
                     )}
                   </Menu.Item>
                 </div>
