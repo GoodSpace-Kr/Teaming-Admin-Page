@@ -11,7 +11,7 @@ concurrency:
 env:
   AWS_REGION: ${{ secrets.AWS_REGION }}
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-  ECR_REPOSITORY: ${{ secrets.ECR_REPO_NAME }}
+  ECR_REPO_NAME: ${{ secrets.ECR_REPO_NAME }}
   ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
   IMAGE_TAG: ${{ github.sha }}
   DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
@@ -38,8 +38,8 @@ jobs:
 
       - name: Ensure ECR repository exists
         run: |
-          aws ecr describe-repositories --repository-names "${ECR_REPOSITORY}" >/dev/null 2>&1 \
-            || aws ecr create-repository --repository-name "${ECR_REPOSITORY}" >/dev/null
+          aws ecr describe-repositories --repository-names "${ECR_REPO_NAME}" >/dev/null 2>&1 \
+            || aws ecr create-repository --repository-name "${ECR_REPO_NAME}" >/dev/null
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -50,10 +50,10 @@ jobs:
           context: .
           push: true
           tags: |
-            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:${{ env.IMAGE_TAG }}
-            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:latest
-          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:buildcache
-          cache-to: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPOSITORY }}:buildcache,mode=max
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_NAME }}:latest
+          cache-from: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO_NAME }}:buildcache,mode=max
 
 
       - name: SSH to EC2 and run deploy.sh (pass envs for deploy.sh)
@@ -62,14 +62,22 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: AWS_ACCOUNT_ID,AWS_REGION,ADMIN_ECR_REPO
+          envs: AWS_ACCOUNT_ID,AWS_REGION,ECR_REPO_NAME,IMAGE_TAG
           script: |
+            echo "환경 변수 확인:"
+            echo "AWS_ACCOUNT_ID: ${AWS_ACCOUNT_ID}"
+            echo "AWS_REGION: ${AWS_REGION}"
+            echo "ECR_REPO_NAME: ${ECR_REPO_NAME}"
+            echo "IMAGE_TAG: ${IMAGE_TAG}"
+            echo "전체 이미지 경로: ${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}"
             export AWS_ACCOUNT_ID="${AWS_ACCOUNT_ID}"
             export AWS_REGION="${AWS_REGION}"
-            export ADMIN_ECR_REPO="${ADMIN_ECR_REPO}"
+            export ECR_REPO_NAME="${ECR_REPO_NAME}"
+            export IMAGE_TAG="${IMAGE_TAG}"
             bash /home/ubuntu/teaming/deploy.sh
         env:
-          ADMIN_ECR_REPO: ${{ env.ECR_REPOSITORY }}
+          ECR_REPO_NAME: ${{ env.ECR_REPO_NAME }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
 
       - name: Notify success to Discord
         if: ${{ success() }}
