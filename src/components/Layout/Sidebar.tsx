@@ -4,7 +4,8 @@ import {
   UsersIcon, 
   UserGroupIcon, 
   CogIcon,
-  ChartBarIcon
+  ChartBarIcon,
+  GiftIcon
 } from '@heroicons/react/24/outline';
 import { cn } from '../../utils/cn';
 
@@ -12,6 +13,7 @@ const navigation = [
   { name: '대시보드', href: '/', icon: HomeIcon },
   { name: '사용자 관리', href: '/users', icon: UsersIcon },
   { name: '팀 관리', href: '/teams', icon: UserGroupIcon },
+  { name: '기프티콘 관리', href: '/gifticon', icon: GiftIcon },
   { name: '통계', href: '/analytics', icon: ChartBarIcon },
   { name: '설정', href: '/settings', icon: CogIcon },
 ];

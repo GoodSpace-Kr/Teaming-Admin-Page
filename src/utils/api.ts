@@ -39,6 +39,10 @@ export const API_ENDPOINTS = {
   // 웹소켓 관련
   WS_CONNECT: '/ws/connect',
   WS_NOTIFICATIONS: '/ws/notifications',
+  
+  // 기프티콘 관련
+  GIFTCON_GET: '/admin/gifticon',
+  GIFTCON_SAVE: '/admin/gifticon',
 };
 
 // HTTP 요청 헬퍼 함수 (JWT 자동 관리)
@@ -97,6 +101,12 @@ export const apiRequest = async <T = any>(
     
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    // 응답이 비어있거나 JSON이 아닌 경우 처리
+    const contentType = response.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return await response.text();
     }
     
     return await response.json();
