@@ -15,8 +15,8 @@ export const apiConfig = {
 
 // API 엔드포인트들
 export const API_ENDPOINTS = {
-  // 인증 관련
-  AUTH_LOGIN: '/api/auth/teaming/sign-in',
+  // 인증 관련 (Nginx에서 /api 접두사 제거하므로 /api/api로 시작)
+  AUTH_LOGIN: '/api/api/auth/teaming/sign-in',
   AUTH_LOGOUT: '/users/me/log-out',
   AUTH_REFRESH: '/users/me/access-token',
   AUTH_ME: '/users/me',
