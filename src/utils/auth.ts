@@ -33,7 +33,7 @@ export const isTokenExpired = (token: string): boolean => {
 
 // 로그인 함수
 export const login = async (credentials: LoginRequest): Promise<LoginResponse> => {
-  const response = await apiRequest<LoginResponse>('/api/api/auth/teaming/sign-in', {
+  const response = await apiRequest<LoginResponse>('/api/auth/teaming/sign-in', {
     method: 'POST',
     body: JSON.stringify(credentials),
   });

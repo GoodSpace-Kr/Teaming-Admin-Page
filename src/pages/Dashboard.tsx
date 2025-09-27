@@ -1,6 +1,5 @@
 import { UsersIcon, UserGroupIcon, ChartBarIcon, ArrowUpIcon } from '@heroicons/react/24/outline';
 import type { DashboardStats } from '../types/index';
-import { apiGet, API_ENDPOINTS } from '../utils/api';
 
 const mockStats: DashboardStats = {
   totalUsers: 1247,

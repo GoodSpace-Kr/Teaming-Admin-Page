@@ -15,8 +15,8 @@ export const apiConfig = {
 
 // API 엔드포인트들
 export const API_ENDPOINTS = {
-  // 인증 관련 (Nginx에서 /api 접두사 제거하므로 /api/api로 시작)
-  AUTH_LOGIN: '/api/api/auth/teaming/sign-in',
+  // 인증 관련
+  AUTH_LOGIN: '/api/auth/teaming/sign-in',
   AUTH_LOGOUT: '/users/me/log-out',
   AUTH_REFRESH: '/users/me/access-token',
   AUTH_ME: '/users/me',
@@ -46,7 +46,8 @@ export const apiRequest = async <T = any>(
   endpoint: string, 
   options: RequestInit = {}
 ): Promise<T> => {
-  const url = `${apiConfig.baseURL}${endpoint}`;
+  // Nginx에서 /api 접두사를 제거하므로, /api를 추가해서 보냄
+  const url = `${apiConfig.baseURL}/api${endpoint}`;
   
   // 토큰 갱신 시도
   const accessToken = await refreshTokenIfNeeded();
