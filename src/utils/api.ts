@@ -49,8 +49,8 @@ export const apiRequest = async <T = any>(
   // Nginx에서 /api 접두사를 제거하므로, /api를 추가해서 보냄
   const url = `${apiConfig.baseURL}/api${endpoint}`;
   
-  // 토큰 갱신 시도
-  const accessToken = await refreshTokenIfNeeded();
+  // 현재 액세스 토큰 가져오기 (갱신하지 않음)
+  const accessToken = storage.getAccessToken();
   
   const defaultOptions: RequestInit = {
     headers: {
