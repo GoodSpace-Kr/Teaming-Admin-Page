@@ -11,8 +11,8 @@ import Settings from './pages/Settings';
 
 function App() {
   return (
-    <AuthProvider>
-      <Router>
+    <Router>
+      <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/" element={
@@ -27,8 +27,8 @@ function App() {
             <Route path="settings" element={<Settings />} />
           </Route>
         </Routes>
-      </Router>
-    </AuthProvider>
+      </AuthProvider>
+    </Router>
   );
 }
 

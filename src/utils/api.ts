@@ -15,8 +15,8 @@ export const apiConfig = {
 
 // API 엔드포인트들
 export const API_ENDPOINTS = {
-  // 인증 관련
-  AUTH_LOGIN: '/api/auth/teaming/sign-in',
+  // 인증 관련 (Nginx에서 /api 접두사 제거하므로 /auth로 시작)
+  AUTH_LOGIN: '/auth/teaming/sign-in',
   AUTH_LOGOUT: '/users/me/log-out',
   AUTH_REFRESH: '/users/me/access-token',
   AUTH_ME: '/users/me',
@@ -42,7 +42,10 @@ export const API_ENDPOINTS = {
 };
 
 // HTTP 요청 헬퍼 함수 (JWT 자동 관리)
-export const apiRequest = async (endpoint: string, options: RequestInit = {}): Promise<any> => {
+export const apiRequest = async <T = any>(
+  endpoint: string, 
+  options: RequestInit = {}
+): Promise<T> => {
   const url = `${apiConfig.baseURL}${endpoint}`;
   
   // 토큰 갱신 시도
@@ -58,7 +61,8 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}): P
   };
 
   try {
-    const response = await fetch(url, defaultOptions);
+    console.log('API 요청:', { url, options: defaultOptions });
+    const response = await fetch(url as string, defaultOptions as RequestInit);
     
     // 403 응답 처리 (토큰 만료)
     if (response.status === 403) {
@@ -75,7 +79,7 @@ export const apiRequest = async (endpoint: string, options: RequestInit = {}): P
           },
         };
         
-        const retryResponse = await fetch(url, retryOptions);
+        const retryResponse = await fetch(url as string, retryOptions as RequestInit);
         
         if (!retryResponse.ok) {
           throw new Error(`HTTP error! status: ${retryResponse.status}`);
