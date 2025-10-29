@@ -1,63 +1,85 @@
 import React, { useState, useEffect } from 'react';
-import { apiGet, apiPost, API_ENDPOINTS } from '../utils/api';
-import type { GifticonResponse, GifticonFormData } from '../types/gifticon';
+import { GifticonFiltersComponent } from '../components/Gifticon/GifticonFilters';
+import { GifticonList } from '../components/Gifticon/GifticonList';
+import { GifticonForm } from '../components/Gifticon/GifticonForm';
+import { ConfirmDialog } from '../components/Common/ConfirmDialog';
+import { 
+  fetchAllGifticons, 
+  saveGifticon, 
+  deleteGifticons,
+  processGifticons,
+  getDeletableExpiredGifticonIds
+} from '../services/gifticonService';
+import type { 
+  GifticonDetailResponse, 
+  GifticonFormData, 
+  GifticonFilters, 
+  SortOptions 
+} from '../types/gifticon';
 
 export default function Gifticon() {
-  const [gifticons, setGifticons] = useState<GifticonResponse[]>([]);
+  const [gifticons, setGifticons] = useState<GifticonDetailResponse[]>([]);
+  const [filteredGifticons, setFilteredGifticons] = useState<GifticonDetailResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [searchEmail, setSearchEmail] = useState('');
-  const [formData, setFormData] = useState<GifticonFormData>({
-    email: '',
-    code: '',
-    expirationDate: '',
-    grade: 'BASIC'
+  
+  // 필터 및 정렬 상태
+  const [filters, setFilters] = useState<GifticonFilters>({});
+  const [sortOptions, setSortOptions] = useState<SortOptions>({
+    field: 'id',
+    order: 'asc'
   });
 
-  // 기프티콘 조회
-  const fetchGifticons = async (email: string) => {
-    if (!email.trim()) {
-      setError('이메일을 입력해주세요.');
-      return;
-    }
+  // 삭제 관련 상태
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<number | null>(null);
+  const [deleteTargetType, setDeleteTargetType] = useState<'single' | 'expired' | null>(null);
 
+  // 컴포넌트 마운트 시 기프티콘 목록 로드
+  useEffect(() => {
+    loadGifticons();
+  }, []);
+
+  // 필터나 정렬 옵션이 변경될 때마다 목록 재처리
+  useEffect(() => {
+    const processed = processGifticons(gifticons, filters, sortOptions);
+    setFilteredGifticons(processed);
+  }, [gifticons, filters, sortOptions]);
+
+  // 기프티콘 목록 로드
+  const loadGifticons = async () => {
     setLoading(true);
     setError('');
     try {
-      const response = await apiGet(`${API_ENDPOINTS.GIFTCON_GET}?email=${encodeURIComponent(email)}`);
-      setGifticons(response);
+      const data = await fetchAllGifticons();
+      setGifticons(data);
     } catch (err: any) {
-      setError(err.message || '기프티콘 조회에 실패했습니다.');
+      setError(err.message || '기프티콘 목록 조회에 실패했습니다.');
     } finally {
       setLoading(false);
     }
   };
 
   // 기프티콘 저장
-  const saveGifticon = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSaveGifticon = async (formData: GifticonFormData) => {
     setLoading(true);
     setError('');
     setSuccess('');
 
     try {
-      // API 요청 형식에 맞게 데이터 변환
+      // 폼 데이터를 API 요청 형식으로 변환
       const gifticonData = {
         code: formData.code,
         expirationDateStr: formData.expirationDate.replace(/-/g, ''), // YYYY-MM-DD -> YYYYMMDD
         grade: formData.grade
       };
       
-      const response = await apiPost(API_ENDPOINTS.GIFTCON_SAVE, gifticonData);
-      // 응답은 문자열이므로 JSON 파싱하지 않음
+      await saveGifticon(gifticonData);
       setSuccess('기프티콘이 성공적으로 저장되었습니다.');
-      setFormData({
-        email: '',
-        code: '',
-        expirationDate: '',
-        grade: 'BASIC'
-      });
+      
+      // 목록 새로고침
+      await loadGifticons();
     } catch (err: any) {
       setError(err.message || '기프티콘 저장에 실패했습니다.');
     } finally {
@@ -65,21 +87,66 @@ export default function Gifticon() {
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+  // 필터 변경 핸들러
+  const handleFiltersChange = (newFilters: GifticonFilters) => {
+    setFilters(newFilters);
   };
 
-  const getGradeColor = (grade: string) => {
-    switch (grade) {
-      case 'ELITE': return 'text-purple-600 bg-purple-100';
-      case 'STANDARD': return 'text-blue-600 bg-blue-100';
-      case 'BASIC': return 'text-green-600 bg-green-100';
-      default: return 'text-gray-600 bg-gray-100';
+  // 정렬 변경 핸들러
+  const handleSortChange = (newSortOptions: SortOptions) => {
+    setSortOptions(newSortOptions);
+  };
+
+  // 개별 기프티콘 삭제 핸들러
+  const handleDeleteGifticon = (id: number) => {
+    setDeleteTargetId(id);
+    setDeleteTargetType('single');
+    setShowDeleteDialog(true);
+  };
+
+  // 만료된 기프티콘 일괄 삭제 핸들러
+  const handleDeleteExpiredGifticons = () => {
+    setDeleteTargetType('expired');
+    setShowDeleteDialog(true);
+  };
+
+  // 삭제 확인 핸들러
+  const handleConfirmDelete = async () => {
+    if (!deleteTargetType) return;
+
+    setLoading(true);
+    setError('');
+    setSuccess('');
+
+    try {
+      if (deleteTargetType === 'single' && deleteTargetId) {
+        await deleteGifticons([deleteTargetId]);
+        setSuccess('기프티콘이 성공적으로 삭제되었습니다.');
+      } else if (deleteTargetType === 'expired') {
+        const expiredIds = getDeletableExpiredGifticonIds(gifticons);
+        if (expiredIds.length > 0) {
+          await deleteGifticons(expiredIds);
+          setSuccess(`만료된 기프티콘 ${expiredIds.length}개가 성공적으로 삭제되었습니다.`);
+        }
+      }
+      
+      // 목록 새로고침
+      await loadGifticons();
+    } catch (err: any) {
+      setError(err.message || '기프티콘 삭제에 실패했습니다.');
+    } finally {
+      setLoading(false);
+      setShowDeleteDialog(false);
+      setDeleteTargetId(null);
+      setDeleteTargetType(null);
     }
+  };
+
+  // 삭제 취소 핸들러
+  const handleCancelDelete = () => {
+    setShowDeleteDialog(false);
+    setDeleteTargetId(null);
+    setDeleteTargetType(null);
   };
 
   return (
@@ -87,126 +154,32 @@ export default function Gifticon() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">기프티콘 관리</h1>
         <p className="mt-1 text-sm text-gray-600">
-          사용자의 기프티콘을 조회하고 새로운 기프티콘을 저장할 수 있습니다.
+          전체 기프티콘을 조회하고 새로운 기프티콘을 저장할 수 있습니다.
         </p>
       </div>
 
-      {/* 기프티콘 조회 */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">기프티콘 조회</h2>
-        <div className="flex gap-4">
-          <input
-            type="email"
-            placeholder="사용자 이메일을 입력하세요"
-            value={searchEmail}
-            onChange={(e) => setSearchEmail(e.target.value)}
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-          />
-          <button
-            onClick={() => fetchGifticons(searchEmail)}
-            disabled={loading}
-            className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
-          >
-            {loading ? '조회 중...' : '조회'}
-          </button>
-        </div>
+      {/* 기프티콘 저장 폼 */}
+      <GifticonForm 
+        onSubmit={handleSaveGifticon} 
+        loading={loading} 
+      />
 
-        {/* 조회 결과 */}
-        {gifticons.length > 0 && (
-          <div className="mt-6">
-            <h3 className="text-md font-medium text-gray-900 mb-3">
-              {searchEmail}의 기프티콘 ({gifticons.length}개)
-            </h3>
-            <div className="grid gap-4">
-              {gifticons.map((gifticon, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-medium text-gray-900">{gifticon.code}</p>
-                      <p className="text-sm text-gray-600">만료일: {gifticon.expirationDateStr}</p>
-                    </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getGradeColor(gifticon.grade)}`}>
-                      {gifticon.grade}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* 필터 및 정렬 */}
+      <GifticonFiltersComponent
+        filters={filters}
+        sortOptions={sortOptions}
+        onFiltersChange={handleFiltersChange}
+        onSortChange={handleSortChange}
+        onDeleteExpired={handleDeleteExpiredGifticons}
+        deletableExpiredCount={getDeletableExpiredGifticonIds(gifticons).length}
+      />
 
-        {gifticons.length === 0 && searchEmail && !loading && (
-          <div className="mt-4 text-center text-gray-500">
-            해당 사용자의 기프티콘이 없습니다.
-          </div>
-        )}
-      </div>
-
-      {/* 기프티콘 저장 */}
-      <div className="bg-white shadow rounded-lg p-6">
-        <h2 className="text-lg font-medium text-gray-900 mb-4">기프티콘 저장</h2>
-        <form onSubmit={saveGifticon} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="code" className="block text-sm font-medium text-gray-700">
-                기프티콘 코드
-              </label>
-              <input
-                type="text"
-                id="code"
-                name="code"
-                value={formData.code}
-                onChange={handleInputChange}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-                placeholder="기프티콘 코드를 입력하세요"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700">
-                만료일
-              </label>
-              <input
-                type="date"
-                id="expirationDate"
-                name="expirationDate"
-                value={formData.expirationDate}
-                onChange={handleInputChange}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label htmlFor="grade" className="block text-sm font-medium text-gray-700">
-              등급
-            </label>
-            <select
-              id="grade"
-              name="grade"
-              value={formData.grade}
-              onChange={handleInputChange}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
-            >
-              <option value="BASIC">BASIC</option>
-              <option value="STANDARD">STANDARD</option>
-              <option value="ELITE">ELITE</option>
-            </select>
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-6 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-primary-500 disabled:opacity-50"
-            >
-              {loading ? '저장 중...' : '기프티콘 저장'}
-            </button>
-          </div>
-        </form>
-      </div>
+      {/* 기프티콘 목록 */}
+      <GifticonList 
+        gifticons={filteredGifticons} 
+        loading={loading}
+        onDeleteGifticon={handleDeleteGifticon}
+      />
 
       {/* 알림 메시지 */}
       {error && (
@@ -220,6 +193,22 @@ export default function Gifticon() {
           <div className="text-sm text-green-700">{success}</div>
         </div>
       )}
+
+      {/* 삭제 확인 다이얼로그 */}
+      <ConfirmDialog
+        isOpen={showDeleteDialog}
+        title={deleteTargetType === 'single' ? '기프티콘 삭제' : '만료된 기프티콘 일괄 삭제'}
+        message={
+          deleteTargetType === 'single' 
+            ? '이 기프티콘을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.'
+            : `전송되지 않은 만료된 기프티콘 ${getDeletableExpiredGifticonIds(gifticons).length}개를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.`
+        }
+        confirmText="삭제"
+        cancelText="취소"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
+        loading={loading}
+      />
     </div>
   );
 }
